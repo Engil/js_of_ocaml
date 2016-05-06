@@ -43,7 +43,7 @@ module IdentTable = struct
       rem
     | Node (l, v, r, _) ->
       table_contents_rec sz l
-        ((sz - v.data, v.ident.Ident.name, v.ident) :: table_contents_rec sz r rem)
+        ((sz - v.data, Ident.name v.ident, v.ident) :: table_contents_rec sz r rem)
 
   let table_contents sz t =
     List.sort (fun (i, _, _) (j, _, _) -> compare i j)
@@ -1902,8 +1902,8 @@ let exe_from_channel ~includes ?(toplevel=false) ~debug ~debug_data ic =
   (* Initialize module override mechanism *)
   List.iter (fun (name, v) ->
     try
-      let nn = { Ident.stamp= 0; name; flags= 0 } in
-      let i = Tbl.find (fun x1 x2 -> String.compare x1.Ident.name x2.Ident.name) nn symbols.num_tbl in
+      let nn = Ident.create_persistent name in
+      let i = Tbl.find (fun x1 x2 -> String.compare (Ident.name x1) (Ident.name x2)) nn symbols.num_tbl in
       globals.override.(i) <- Some v;
       if debug_parser () then Format.eprintf "overriding global %s@." name
     with Not_found -> ()
@@ -1967,8 +1967,8 @@ let exe_from_channel ~includes ?(toplevel=false) ~debug ~debug_data ic =
   let cmis =
     if toplevel && Option.Optim.include_cmis ()
     then Tbl.fold (fun id _num acc ->
-      if id.Ident.flags = 1
-      then Util.StringSet.add id.Ident.name  acc
+      if Ident.global id
+      then Util.StringSet.add (Ident.name id)  acc
       else acc) symbols.num_tbl Util.StringSet.empty
     else Util.StringSet.empty in
   prepend p body, cmis, debug_data
@@ -2037,7 +2037,8 @@ module Reloc = struct
 
   let step2 t compunit code =
     let open Cmo_format in
-    let next { Ident.name; _} =
+    let next id =
+      let name = Ident.name id in
       try Hashtbl.find t.names name with
       | Not_found ->
         let x = t.pos in
